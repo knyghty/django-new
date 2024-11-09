@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+import sys
+
+from django import conf, http, urls
+from django.core.handlers import wsgi
+from django.core.management import execute_from_command_line
+
+
+def index(request):
+    return http.HttpResponse("<h1>Hello, world!</h1>")
+
+
+conf.settings.configure(DEBUG=True, ROOT_URLCONF=__name__)
+app = wsgi.WSGIHandler()
+urlpatterns = [urls.path("", index)]
+
+if __name__ == "__main__":
+    execute_from_command_line(sys.argv)
