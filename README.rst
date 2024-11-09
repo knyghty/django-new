@@ -2,6 +2,11 @@
 Django New
 ==========
 
+A demo of a small startproject frontend.
+
+To try it out, add ``django_new`` to ``INSTALLED_APPS``
+and run ``./manage.py new <project_name>``.
+
 Credits
 -------
 
