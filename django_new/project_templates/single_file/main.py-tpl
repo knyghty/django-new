@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import sys
 
-from django import conf, http, urls
+from django import conf
+from django import http
+from django import urls
 from django.core.handlers import wsgi
 from django.core.management import execute_from_command_line
 

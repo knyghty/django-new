@@ -3,7 +3,6 @@ from django.core.management import call_command
 
 from ...conf import TEMPLATES_DIR
 
-
 PROJECT_STRUCTURE_MAP = {
     "1": f"{TEMPLATES_DIR}/default",
     "2": f"{TEMPLATES_DIR}/single_file",
@@ -25,5 +24,7 @@ class Command(BaseCommand):
         self.stdout.write("3: A classic project")
         self.stdout.write("You may also enter a path or URL to a custom template")
         project_structure = input()
-        project_template = PROJECT_STRUCTURE_MAP.get(project_structure, project_structure)
+        project_template = PROJECT_STRUCTURE_MAP.get(
+            project_structure, project_structure
+        )
         call_command("startproject", project_name, template=project_template)

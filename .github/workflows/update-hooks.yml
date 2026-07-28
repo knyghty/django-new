@@ -1,0 +1,79 @@
+name: Update hooks
+
+on:
+  schedule:
+    - cron: "57 5 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install prek
+        uses: j178/prek-action@v2
+        with:
+          install-only: true
+      - name: Update hook versions
+        run: prek update
+      - name: Run hooks
+        run: prek run --all-files || prek run --all-files || true
+      - name: Check which files changed
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ] && [ "$(git diff --name-only)" = ".pre-commit-config.yaml" ]; then
+            echo "config-only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "config-only=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create pull request
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: Update pre-commit hooks
+          title: Update pre-commit hooks
+          body: Automated hook update from the `update-hooks` workflow, using `prek update`.
+          branch: update-pre-commit-hooks
+          delete-branch: true
+      # GitHub holds CI runs from bot-authored PRs for manual approval;
+      # approve so the required checks can report.
+      - name: Approve CI run
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAT: ${{ secrets.AUTOMATION_TOKEN }}
+        run: |
+          for i in $(seq 1 24); do
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=update-pre-commit-hooks&event=pull_request" \
+              --jq '[.workflow_runs[] | select(.conclusion == "action_required")][0].id // empty')
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "No CI run waiting for approval"
+            exit 0
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve" ||
+            GH_TOKEN="$PAT" gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve"
+      - name: Enable auto-merge
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          gh pr merge --squash --auto "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" ||
+            echo "::warning::Could not enable auto-merge"
+      # The bot authors the PR, so this approval comes from the token owner.
+      - name: Approve if only the hook config changed
+        if: steps.changes.outputs.config-only == 'true' && (steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated')
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr review --approve "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
